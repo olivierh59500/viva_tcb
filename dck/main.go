@@ -1,10 +1,15 @@
 // Package vivatcb implements the VIVA TCB Ebitengine demo.
 package vivatcb
 
+import originalassets "viva_tcb"
+
 import (
 	"bytes"
-	"embed"
+
 	"fmt"
+	"github.com/olivierh59500/democonstructionkit/composite"
+	"github.com/olivierh59500/democonstructionkit/presets"
+	"github.com/olivierh59500/democonstructionkit/scrolling"
 	"image"
 	"image/color"
 	_ "image/png"
@@ -33,11 +38,10 @@ const (
 	tilePhaseY = float64(ScreenHeight * 8)
 )
 
-//go:embed assets/*.png
-var assets embed.FS
+var assets = originalassets.
+	DCKAssetAssets()
 
-//go:embed assets/music.ym
-var ymData []byte
+var ymData = originalassets.DCKAssetYmData()
 
 var (
 	scrollerZSinStep, scrollerZCosStep           = math.Sincos(0.75)
@@ -55,12 +59,12 @@ var repeatingQuadIndices = [...]uint16{0, 1, 2, 1, 2, 3}
 type Game struct {
 	initialized bool
 
-	logoImg   *ebiten.Image
-	titleImg  *ebiten.Image
-	rasterImg *ebiten.Image
-	tileImg   *ebiten.Image
-	fontImg   *ebiten.Image
-	fontTiles [59]*ebiten.Image
+	logoImg        *ebiten.Image
+	titleImg       *ebiten.Image
+	rasterImg      *ebiten.Image
+	tileImg        *ebiten.Image
+	fontImg        *ebiten.Image
+	scrollPrograms [4]*scrolling.Scrolling
 
 	titleCanvas *ebiten.Image
 	topBar      *ebiten.Image
@@ -222,16 +226,16 @@ func (g *Game) Init() error {
 		return fmt.Errorf("load font: %w", err)
 	}
 
-	for fontIndex := range g.fontTiles {
-		const columns = 10
-		srcX := (fontIndex % columns) * fontCharWidth
-		srcY := (fontIndex / columns) * fontCharHeight
-		g.fontTiles[fontIndex] = g.fontImg.SubImage(image.Rect(
-			srcX,
-			srcY,
-			srcX+fontCharWidth,
-			srcY+fontCharHeight,
-		)).(*ebiten.Image)
+	spec, _ := presets.FindFont("viva_tcb")
+	metrics, err := spec.Build(g.fontImg.Bounds())
+	if err != nil {
+		return err
+	}
+	for i, text := range [...]string{g.text1, g.text2, g.text3, g.text4} {
+		g.scrollPrograms[i], err = scrolling.New(scrolling.Config{Text: text, Advance: 64, Fonts: map[string]scrolling.Face{"default": {Atlas: g.fontImg, Metrics: metrics}}})
+		if err != nil {
+			return err
+		}
 	}
 
 	g.titleCanvas = ebiten.NewImage(g.titleImg.Bounds().Dx(), g.titleImg.Bounds().Dy())
@@ -299,47 +303,45 @@ func (g *Game) drawScroller(dst *ebiten.Image, text string, scrollX float64, scr
 	if len(text) == 0 {
 		return
 	}
-
 	firstIndex := int(scrollX / 64)
 	maxIndex := firstIndex + 8
-	zSin, zCos := math.Sincos((t + float64(maxIndex)*0.15) * 5)
+	zSin, zCos := math.Sincos((t + float64(maxIndex)*.15) * 5)
 	xSin, xCos := math.Sincos(t*7 + float64(maxIndex)*18)
-	ySin, yCos := math.Sincos((t + float64(maxIndex)*0.1) * 7)
-
-	for i := maxIndex; i >= firstIndex; i-- {
-		currentZSin, currentXSin, currentYSin := zSin, xSin, ySin
+	ySin, yCos := math.Sincos((t + float64(maxIndex)*.1) * 7)
+	advance := func() {
 		zSin, zCos = stepSinCosBackward(zSin, zCos, scrollerZSinStep, scrollerZCosStep)
 		xSin, xCos = stepSinCosBackward(xSin, xCos, scrollerXSinStep, scrollerXCosStep)
 		ySin, yCos = stepSinCosBackward(ySin, yCos, scrollerYSinStep, scrollerYCosStep)
-
-		if i < 0 || i >= len(text) {
-			continue
-		}
-
-		z := currentZSin*0.5 + 1.5
-		drawX := math.Floor((float64(i)*64 - 40 - currentXSin*32*horizontalWave - scrollX) * 2)
+	}
+	for i := maxIndex; i >= len(text); i-- {
+		advance()
+	}
+	state := scrolling.IdentityState()
+	state.First = firstIndex
+	state.End = maxIndex + 1
+	state.Reverse = true
+	state.Time = t
+	state.Position = scrollX
+	state.Map = func(sample scrolling.Sample, op *ebiten.DrawImageOptions) bool {
+		currentZSin, currentXSin, currentYSin := zSin, xSin, ySin
+		advance()
+		z := currentZSin*.5 + 1.5
+		drawX := math.Floor((float64(sample.Index)*64 - 40 - currentXSin*32*horizontalWave - scrollX) * 2)
 		drawY := math.Floor(currentYSin*42*verticalWave + baseY - z*32)
 		scale := z
 		if scrollerID == 1 || scrollerID == 2 {
 			scale = 3 - z
 		}
-
-		if drawX < -100 || drawX > ScreenWidth+100 || drawY < -100 || drawY > ScreenHeight+100 || scale <= 0.1 {
-			continue
+		if drawX < -100 || drawX > ScreenWidth+100 || drawY < -100 || drawY > ScreenHeight+100 || scale <= .1 {
+			return false
 		}
-
-		fontIndex := mapCharToFont(int(text[i]))
-		glyph := g.fontTiles[fontIndex]
-		if glyph == nil {
-			continue
-		}
-
-		var op ebiten.DrawImageOptions
+		op.GeoM.Reset()
 		op.GeoM.Scale(scale, scale)
 		op.GeoM.Translate(drawX, drawY)
-		op.ColorScale.Scale(1, 1, 1, 0.9)
-		dst.DrawImage(glyph, &op)
+		op.ColorScale.Scale(1, 1, 1, .9)
+		return true
 	}
+	g.scrollPrograms[scrollerID-1].DrawAt(dst, state)
 }
 
 func advanceScroller(scrollX float64, text string) float64 {
@@ -467,38 +469,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func drawRepeatingRotozoom(dst, texture *ebiten.Image, centerX, centerY, zoom, rotation, phaseX, phaseY float64) {
-	if texture == nil || zoom <= 0 {
-		return
-	}
-
-	bounds := dst.Bounds()
-	corners := [4][2]float64{
-		{float64(bounds.Min.X), float64(bounds.Min.Y)},
-		{float64(bounds.Max.X), float64(bounds.Min.Y)},
-		{float64(bounds.Min.X), float64(bounds.Max.Y)},
-		{float64(bounds.Max.X), float64(bounds.Max.Y)},
-	}
-	cosRotation, sinRotation := math.Cos(rotation), math.Sin(rotation)
-	var vertices [4]ebiten.Vertex
-	for i, corner := range corners {
-		x := (corner[0] - centerX) / zoom
-		y := (corner[1] - centerY) / zoom
-		vertices[i] = ebiten.Vertex{
-			DstX:   float32(corner[0]),
-			DstY:   float32(corner[1]),
-			SrcX:   float32(x*cosRotation + y*sinRotation + phaseX),
-			SrcY:   float32(-x*sinRotation + y*cosRotation + phaseY),
-			ColorR: 1,
-			ColorG: 1,
-			ColorB: 1,
-			ColorA: 1,
-		}
-	}
-
-	var op ebiten.DrawTrianglesOptions
-	op.Address = ebiten.AddressRepeat
-	op.Filter = ebiten.FilterNearest
-	dst.DrawTriangles(vertices[:], repeatingQuadIndices[:], texture, &op)
+	composite.Repeat(dst, texture, composite.Repetition{CenterX: centerX, CenterY: centerY, Zoom: zoom, Rotation: rotation, PhaseX: phaseX, PhaseY: phaseY})
 }
 
 func (g *Game) drawTitle(screen *ebiten.Image) {
@@ -507,14 +478,14 @@ func (g *Game) drawTitle(screen *ebiten.Image) {
 		var op ebiten.DrawImageOptions
 		op.GeoM.Scale(24, 1)
 		op.GeoM.Translate(0, rasterY)
-		g.titleCanvas.DrawImage(g.rasterImg, &op)
+		composite.Instance{Image: g.rasterImg, Options: op}.Draw(g.titleCanvas)
 	}
 	var titleOp ebiten.DrawImageOptions
-	g.titleCanvas.DrawImage(g.titleImg, &titleOp)
+	composite.Instance{Image: g.titleImg, Options: titleOp}.Draw(g.titleCanvas)
 
 	var canvasOp ebiten.DrawImageOptions
 	canvasOp.GeoM.Translate(64+ScreenWidth*math.Cos(g.logoX), 14)
-	screen.DrawImage(g.titleCanvas, &canvasOp)
+	composite.Instance{Image: g.titleCanvas, Options: canvasOp}.Draw(screen)
 }
 
 func (g *Game) drawLogos(screen *ebiten.Image) {
@@ -534,7 +505,7 @@ func (g *Game) drawLogos(screen *ebiten.Image) {
 		var op ebiten.DrawImageOptions
 		op.GeoM.Scale(2, 2)
 		op.GeoM.Translate(spX*2, spY*2)
-		screen.DrawImage(g.logoImg, &op)
+		composite.Instance{Image: g.logoImg, Options: op}.Draw(screen)
 
 		xSin, xCos = stepSinCosForward(xSin, xCos, logoXSinStep, logoXCosStep)
 		xSecondarySin, xSecondaryCos = stepSinCosForward(
