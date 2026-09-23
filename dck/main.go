@@ -1,26 +1,25 @@
 // Package vivatcb implements the VIVA TCB Ebitengine demo.
 package vivatcb
 
-import originalassets "viva_tcb"
-
 import (
 	"bytes"
-
 	"fmt"
+	"image"
+	"image/color"
+	originalassets "viva_tcb"
+
 	"github.com/olivierh59500/democonstructionkit/composite"
 	"github.com/olivierh59500/democonstructionkit/presets"
 	"github.com/olivierh59500/democonstructionkit/scrolling"
-	"image"
-	"image/color"
+	"github.com/olivierh59500/democonstructionkit/sound"
+
 	_ "image/png"
-	"io"
 	"log"
 	"math"
-	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
 	audio "github.com/olivierh59500/democonstructionkit/sound/output"
-	"github.com/olivierh59500/ym-player/pkg/stsound"
 )
 
 const (
@@ -71,7 +70,7 @@ type Game struct {
 
 	audioContext *audio.Context
 	audioPlayer  *audio.Player
-	ymPlayer     *YMPlayer
+	musicStream  *sound.Stream
 	audioReady   bool
 	musicStarted bool
 
@@ -99,80 +98,6 @@ type Game struct {
 	text2 string
 	text3 string
 	text4 string
-}
-
-// YMPlayer adapts ym-player's mono int16 stream to Ebitengine's interleaved
-// little-endian stereo PCM reader.
-type YMPlayer struct {
-	player *stsound.StSound
-	buffer []int16
-	mutex  sync.Mutex
-	loop   bool
-}
-
-// NewYMPlayer creates an allocation-free YM audio reader after setup.
-func NewYMPlayer(data []byte, rate int, loop bool) (*YMPlayer, error) {
-	player := stsound.CreateWithRate(rate)
-	if err := player.LoadMemory(data); err != nil {
-		player.Destroy()
-		return nil, fmt.Errorf("load YM data: %w", err)
-	}
-	player.SetLoopMode(loop)
-
-	return &YMPlayer{
-		player: player,
-		buffer: make([]int16, 4096),
-		loop:   loop,
-	}, nil
-}
-
-// Read writes PCM16 stereo frames directly into p.
-func (y *YMPlayer) Read(p []byte) (n int, err error) {
-	y.mutex.Lock()
-	defer y.mutex.Unlock()
-
-	samplesNeeded := len(p) / 4
-	if samplesNeeded == 0 {
-		return 0, nil
-	}
-	if y.player == nil {
-		clear(p[:samplesNeeded*4])
-		return samplesNeeded * 4, io.EOF
-	}
-
-	processed := 0
-	for processed < samplesNeeded {
-		chunkSize := min(samplesNeeded-processed, len(y.buffer))
-		if !y.player.Compute(y.buffer[:chunkSize], chunkSize) && !y.loop {
-			clear(p[processed*4 : samplesNeeded*4])
-			err = io.EOF
-			break
-		}
-
-		for i := 0; i < chunkSize; i++ {
-			sample := y.buffer[i] / 2
-			offset := (processed + i) * 4
-			p[offset] = byte(sample)
-			p[offset+1] = byte(sample >> 8)
-			p[offset+2] = byte(sample)
-			p[offset+3] = byte(sample >> 8)
-		}
-		processed += chunkSize
-	}
-
-	return samplesNeeded * 4, err
-}
-
-// Close releases the synthesizer. It is safe to call more than once.
-func (y *YMPlayer) Close() error {
-	y.mutex.Lock()
-	defer y.mutex.Unlock()
-
-	if y.player != nil {
-		y.player.Destroy()
-		y.player = nil
-	}
-	return nil
 }
 
 // NewGame creates a demo whose graphics and audio are initialized lazily from
@@ -248,20 +173,20 @@ func (g *Game) Init() error {
 func (g *Game) initAudio() {
 	g.audioContext = audio.NewContext(sampleRate)
 
-	ym, err := NewYMPlayer(ymData, sampleRate, true)
+	music, err := sound.Open("music.ym", ymData, sound.Options{SampleRate: sampleRate, Loop: true, PCMFormat: sound.PCM16, Gain: 0.5})
 	if err != nil {
-		log.Printf("cannot create YM player: %v", err)
+		log.Printf("cannot open music: %v", err)
 		return
 	}
-	g.ymPlayer = ym
+	g.musicStream = music
 
-	player, err := g.audioContext.NewPlayer(ym)
+	player, err := g.audioContext.NewPlayer(music)
 	if err != nil {
 		log.Printf("cannot create audio player: %v", err)
-		if closeErr := ym.Close(); closeErr != nil {
-			log.Printf("cannot close YM player: %v", closeErr)
+		if closeErr := music.Close(); closeErr != nil {
+			log.Printf("cannot close music stream: %v", closeErr)
 		}
-		g.ymPlayer = nil
+		g.musicStream = nil
 		return
 	}
 	g.audioPlayer = player

@@ -4,10 +4,12 @@ import (
 	"encoding/binary"
 	"math"
 	"testing"
+
+	"github.com/olivierh59500/democonstructionkit/sound"
 )
 
-func TestYMPlayerReadProducesStereoWithoutAllocating(t *testing.T) {
-	player, err := NewYMPlayer(ymData, sampleRate, true)
+func TestMusicStreamReadProducesStereoWithoutAllocating(t *testing.T) {
+	player, err := sound.Open("music.ym", ymData, sound.Options{SampleRate: sampleRate, Loop: true, PCMFormat: sound.PCM16, Gain: 0.5})
 	if err != nil {
 		t.Fatal(err)
 	}
