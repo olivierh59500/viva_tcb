@@ -200,21 +200,13 @@ func (g *Game) startMusic() {
 	g.musicStarted = true
 }
 
-func mapCharToFont(charCode int) int {
-	if charCode >= 'a' && charCode <= 'z' {
-		charCode -= 'a' - 'A'
+var mapCharToFont = func() func(int) int {
+	lookup, err := presets.TileLookup("viva_tcb", false)
+	if err != nil {
+		panic(err)
 	}
-	switch {
-	case charCode == ' ':
-		return 0
-	case charCode >= '!' && charCode <= '@':
-		return charCode - ' '
-	case charCode >= 'A' && charCode <= 'Z':
-		return charCode - 'A' + 33
-	default:
-		return 0
-	}
-}
+	return func(ch int) int { index, _ := lookup(rune(ch)); return index }
+}()
 
 func stepSinCosBackward(sinValue, cosValue, sinStep, cosStep float64) (float64, float64) {
 	return sinValue*cosStep - cosValue*sinStep, cosValue*cosStep + sinValue*sinStep
