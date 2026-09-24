@@ -8,6 +8,7 @@ import (
 	"image/color"
 	originalassets "viva_tcb"
 
+	kit "github.com/olivierh59500/democonstructionkit"
 	"github.com/olivierh59500/democonstructionkit/composite"
 	"github.com/olivierh59500/democonstructionkit/presets"
 	"github.com/olivierh59500/democonstructionkit/scrolling"
@@ -30,11 +31,6 @@ const (
 	fontCharWidth  = 42
 	fontCharHeight = 40
 	sampleRate     = 48000
-
-	// These phases preserve the texture origin of the former 16-screen-wide
-	// pre-rendered tile canvas without allocating that roughly 400 MiB image.
-	tilePhaseX = float64(ScreenWidth * 8)
-	tilePhaseY = float64(ScreenHeight * 8)
 )
 
 var assets = originalassets.
@@ -52,8 +48,6 @@ var (
 	logoYSecondarySinStep, logoYSecondaryCosStep = math.Sincos(5.0 / 17.0)
 )
 
-var repeatingQuadIndices = [...]uint16{0, 1, 2, 1, 2, 3}
-
 // Game contains the complete state of the demo.
 type Game struct {
 	initialized bool
@@ -62,6 +56,7 @@ type Game struct {
 	titleImg       *ebiten.Image
 	rasterImg      *ebiten.Image
 	tileImg        *ebiten.Image
+	backdrop       *composite.RotozoomBackground
 	fontImg        *ebiten.Image
 	scrollPrograms [4]*scrolling.Scrolling
 
@@ -85,14 +80,6 @@ type Game struct {
 	scrollX2 float64
 	scrollX3 float64
 	scrollX4 float64
-
-	fxFlag int
-	posXi  float64
-	posZi  float64
-	posRi  float64
-
-	initX float64
-	initR float64
 
 	text1 string
 	text2 string
@@ -146,6 +133,14 @@ func (g *Game) Init() error {
 	}
 	if g.tileImg, err = loadImage("assets/tcb_tile.png"); err != nil {
 		return fmt.Errorf("load tile: %w", err)
+	}
+	program, err := presets.NewVivaRotozoom(presets.DefaultVivaRotozoomConfig(ScreenWidth, ScreenHeight))
+	if err != nil {
+		return err
+	}
+	g.backdrop, err = composite.NewRotozoomBackground(composite.RotozoomBackgroundConfig{Image: g.tileImg, Program: program})
+	if err != nil {
+		return err
 	}
 	if g.fontImg, err = loadImage("assets/font.png"); err != nil {
 		return fmt.Errorf("load font: %w", err)
@@ -285,30 +280,8 @@ func (g *Game) Update() error {
 		g.startMusic()
 	}
 
-	if g.fxFlag >= 1 {
-		g.posXi += 0.008
-	}
-	if g.fxFlag >= 2 {
-		g.posZi += 0.003
-	}
-	if g.fxFlag >= 3 {
-		g.posRi += 0.005
-	}
-	if g.posXi >= 2 {
-		g.fxFlag = 2
-	}
-	if g.posZi >= 1.5 {
-		g.fxFlag = 3
-	}
-
-	if g.fxFlag == 0 {
-		g.initX -= 4
-		if g.initX <= -float64(ScreenWidth*2) {
-			g.initR--
-		}
-		if g.initR <= -45 {
-			g.fxFlag = 1
-		}
+	if err := g.backdrop.Update(kit.Frame{Tick: uint64(g.loopCounter + 1), Time: float64(g.loopCounter+1) / 60, Delta: 1.0 / 60}); err != nil {
+		return err
 	}
 
 	if g.hold > 0 {
@@ -341,34 +314,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		return
 	}
 
-	if g.fxFlag >= 1 {
-		zoom := 0.5 + math.Abs(math.Sin(g.posZi)*2.5)
-		rotation := (90 * math.Cos(g.posRi*4-math.Cos(g.posRi-0.01))) * 0.3 * math.Pi / 180
-		posXCurve := math.Cos(g.posXi - 0.1)
-		oscX := (float64(ScreenWidth) / 4) * math.Cos(g.posXi*4-posXCurve)
-		oscY := (float64(ScreenHeight) / 2.7) * -math.Sin(g.posXi*2.3-posXCurve)
-		drawRepeatingRotozoom(
-			screen,
-			g.tileImg,
-			float64(ScreenWidth)/2+oscX,
-			float64(ScreenHeight)/2+oscY,
-			zoom,
-			rotation,
-			tilePhaseX,
-			tilePhaseY,
-		)
-	} else {
-		drawRepeatingRotozoom(
-			screen,
-			g.tileImg,
-			g.initX+float64(ScreenWidth)/2,
-			float64(ScreenHeight)/2,
-			1,
-			g.initR*0.3*math.Pi/180,
-			tilePhaseX,
-			tilePhaseY,
-		)
-	}
+	g.backdrop.Draw(screen)
 
 	t := float64(g.loopCounter)/60 + 19
 	wave := math.Sin(t*0.25)*0.5 + 0.5
@@ -383,10 +329,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.DrawImage(g.topBar, &topBarOp)
 	g.drawTitle(screen)
 	g.drawLogos(screen)
-}
-
-func drawRepeatingRotozoom(dst, texture *ebiten.Image, centerX, centerY, zoom, rotation, phaseX, phaseY float64) {
-	composite.Repeat(dst, texture, composite.Repetition{CenterX: centerX, CenterY: centerY, Zoom: zoom, Rotation: rotation, PhaseX: phaseX, PhaseY: phaseY})
 }
 
 func (g *Game) drawTitle(screen *ebiten.Image) {

@@ -8,3 +8,9 @@ The choreography and assets remain in this repository. Reusable rendering and
 effects come from the published `github.com/olivierh59500/democonstructionkit`
 module pinned in `go.mod`. Music is opened with `sound.Open`; DCK selects the decoder from the asset and
 provides the configured stereo PCM format. The demo keeps its playback level and loop settings.
+
+The moving tile is now a `composite.RotozoomBackground` driven by the editable
+`presets.VivaRotozoom` program. Entrance motion, orbit, zoom, rotation and
+texture phase advance independently. The GPU renderer repeats the source tile
+with one quad and no giant pre-tiled image. A 20-second comparison matched all
+1,200 decoded frames through the entrance and rotozoom stages.
