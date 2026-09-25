@@ -2,7 +2,6 @@ package vivatcb
 
 import (
 	"encoding/binary"
-	"math"
 	"testing"
 
 	"github.com/olivierh59500/democonstructionkit/sound"
@@ -60,20 +59,6 @@ func TestMapCharToFont(t *testing.T) {
 			t.Errorf("mapCharToFont(%q) = %d, want %d", char, got, want)
 		}
 	}
-}
-
-func TestSinCosRecurrencesMatchDirectTrig(t *testing.T) {
-	const start = 12.345
-	sinValue, cosValue := math.Sincos(start)
-	stepSin, stepCos := math.Sincos(0.2)
-	for i := 1; i <= 100; i++ {
-		sinValue, cosValue = stepSinCosForward(sinValue, cosValue, stepSin, stepCos)
-		wantSin, wantCos := math.Sincos(start + float64(i)*0.2)
-		if math.Abs(sinValue-wantSin) > 1e-12 || math.Abs(cosValue-wantCos) > 1e-12 {
-			t.Fatalf("forward recurrence drift at step %d", i)
-		}
-	}
-
 }
 
 func TestNewGameDefersPlatformResources(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"github.com/olivierh59500/democonstructionkit/presets"
 	"github.com/olivierh59500/democonstructionkit/scrolling"
 	"github.com/olivierh59500/democonstructionkit/sound"
+	"github.com/olivierh59500/democonstructionkit/sprites"
 
 	_ "image/png"
 	"log"
@@ -39,24 +40,18 @@ var assets = originalassets.
 
 var ymData = originalassets.DCKAssetYmData()
 
-var (
-	logoXSinStep, logoXCosStep                   = math.Sincos(0.2)
-	logoXSecondarySinStep, logoXSecondaryCosStep = math.Sincos(1.0 / 60.0)
-	logoYSinStep, logoYCosStep                   = math.Sincos(5.0 / 37.0)
-	logoYSecondarySinStep, logoYSecondaryCosStep = math.Sincos(5.0 / 17.0)
-)
-
 // Game contains the complete state of the demo.
 type Game struct {
 	initialized bool
 
-	logoImg      *ebiten.Image
-	titleImg     *ebiten.Image
-	rasterImg    *ebiten.Image
-	tileImg      *ebiten.Image
-	backdrop     *composite.RotozoomBackground
-	fontImg      *ebiten.Image
-	pseudoScroll *scrolling.Scrolling
+	logoImg       *ebiten.Image
+	titleImg      *ebiten.Image
+	rasterImg     *ebiten.Image
+	tileImg       *ebiten.Image
+	backdrop      *composite.RotozoomBackground
+	fontImg       *ebiten.Image
+	pseudoScroll  *scrolling.Scrolling
+	logoFormation *sprites.RecurrentFormation
 
 	titleCanvas *ebiten.Image
 	topBar      *ebiten.Image
@@ -159,6 +154,11 @@ func (g *Game) Init() error {
 	if err != nil {
 		return err
 	}
+	formation := presets.VivaLogoFormation(g.logoImg, ScreenWidth, ScreenHeight, float64(ScreenHeight/2-64)/4)
+	g.logoFormation, err = sprites.NewRecurrentFormation(formation)
+	if err != nil {
+		return err
+	}
 
 	g.titleCanvas = ebiten.NewImage(g.titleImg.Bounds().Dx(), g.titleImg.Bounds().Dy())
 	g.topBar = ebiten.NewImage(ScreenWidth, 64)
@@ -205,10 +205,6 @@ var mapCharToFont = func() func(int) int {
 	return func(ch int) int { index, _ := lookup(rune(ch)); return index }
 }()
 
-func stepSinCosForward(sinValue, cosValue, sinStep, cosStep float64) (float64, float64) {
-	return sinValue*cosStep + cosValue*sinStep, cosValue*cosStep - sinValue*sinStep
-}
-
 // Update advances the demo by one fixed 60 Hz tick.
 func (g *Game) Update() error {
 	if !g.initialized {
@@ -235,6 +231,9 @@ func (g *Game) Update() error {
 	g.rasterMotion.Step()
 
 	g.loopCounter++
+	if err := g.logoFormation.Update(float64(g.loopCounter)); err != nil {
+		return err
+	}
 	return g.pseudoScroll.Update(kit.Frame{Tick: uint64(g.loopCounter), Time: float64(g.loopCounter) / 60})
 }
 
@@ -252,7 +251,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	var topBarOp ebiten.DrawImageOptions
 	screen.DrawImage(g.topBar, &topBarOp)
 	g.drawTitle(screen)
-	g.drawLogos(screen)
+	g.logoFormation.Draw(screen)
 }
 
 func (g *Game) drawTitle(screen *ebiten.Image) {
@@ -269,42 +268,6 @@ func (g *Game) drawTitle(screen *ebiten.Image) {
 	var canvasOp ebiten.DrawImageOptions
 	canvasOp.GeoM.Translate(64+ScreenWidth*math.Cos(g.logoX), 14)
 	composite.Instance{Image: g.titleCanvas, Options: canvasOp}.Draw(screen)
-}
-
-func (g *Game) drawLogos(screen *ebiten.Image) {
-	midX := float64(ScreenWidth/2-32) / 2
-	midY := 24 + float64(ScreenHeight/2-32)/2
-	incY := float64(ScreenHeight/2-64) / 4
-	base := float64(g.loopCounter)
-	xSin, xCos := math.Sincos(base / 25)
-	xSecondarySin, xSecondaryCos := math.Sincos(base / 300)
-	ySin, yCos := math.Sincos(base / 37)
-	ySecondarySin, ySecondaryCos := math.Sincos(base / 17)
-
-	for range 10 {
-		spX := midX + midX*xSin*xSecondaryCos
-		spY := midY + incY*ySin + incY*ySecondaryCos
-
-		var op ebiten.DrawImageOptions
-		op.GeoM.Scale(2, 2)
-		op.GeoM.Translate(spX*2, spY*2)
-		composite.Instance{Image: g.logoImg, Options: op}.Draw(screen)
-
-		xSin, xCos = stepSinCosForward(xSin, xCos, logoXSinStep, logoXCosStep)
-		xSecondarySin, xSecondaryCos = stepSinCosForward(
-			xSecondarySin,
-			xSecondaryCos,
-			logoXSecondarySinStep,
-			logoXSecondaryCosStep,
-		)
-		ySin, yCos = stepSinCosForward(ySin, yCos, logoYSinStep, logoYCosStep)
-		ySecondarySin, ySecondaryCos = stepSinCosForward(
-			ySecondarySin,
-			ySecondaryCos,
-			logoYSecondarySinStep,
-			logoYSecondaryCosStep,
-		)
-	}
 }
 
 // Layout returns the demo's fixed logical size. Ebitengine letterboxes it on

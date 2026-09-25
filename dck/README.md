@@ -25,3 +25,6 @@ The four pseudo-3D scrolltexts now use one `scrolling.Config.Pseudo3D` effect.
 Their text, font metrics, depth harmonics, spacing, mirrored scale and clipping
 remain editable parameters. Eight captures through frame 4,800 match the
 preceding DCK renderer in every color and alpha channel.
+The ten moving DMA logos now use `sprites.RecurrentFormation`. Four harmonic
+seeds produce all poses with editable count, phase spacing and vertical
+amplitude. Eight captures through frame 4,800 remain identical in every channel.
