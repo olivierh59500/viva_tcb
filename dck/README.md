@@ -20,3 +20,8 @@ For silent, deterministic native frames of the DCK version:
 ```sh
 go run ./dck/cmd/capture -frames 0,1,60,240,600,1200 -out captures/viva
 ```
+
+The four pseudo-3D scrolltexts now use one `scrolling.Config.Pseudo3D` effect.
+Their text, font metrics, depth harmonics, spacing, mirrored scale and clipping
+remain editable parameters. Eight captures through frame 4,800 match the
+preceding DCK renderer in every color and alpha channel.

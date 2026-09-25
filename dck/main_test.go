@@ -62,16 +62,6 @@ func TestMapCharToFont(t *testing.T) {
 	}
 }
 
-func TestScrollerAdvanceWraps(t *testing.T) {
-	const text = "AB"
-	if got, want := advanceScroller(124, text), float64(0); got != want {
-		t.Fatalf("advanceScroller at wrap = %v, want %v", got, want)
-	}
-	if got, want := advanceScroller(0, text), float64(4); got != want {
-		t.Fatalf("advanceScroller = %v, want %v", got, want)
-	}
-}
-
 func TestSinCosRecurrencesMatchDirectTrig(t *testing.T) {
 	const start = 12.345
 	sinValue, cosValue := math.Sincos(start)
@@ -84,14 +74,6 @@ func TestSinCosRecurrencesMatchDirectTrig(t *testing.T) {
 		}
 	}
 
-	sinValue, cosValue = math.Sincos(start)
-	for i := 1; i <= 100; i++ {
-		sinValue, cosValue = stepSinCosBackward(sinValue, cosValue, stepSin, stepCos)
-		wantSin, wantCos := math.Sincos(start - float64(i)*0.2)
-		if math.Abs(sinValue-wantSin) > 1e-12 || math.Abs(cosValue-wantCos) > 1e-12 {
-			t.Fatalf("backward recurrence drift at step %d", i)
-		}
-	}
 }
 
 func TestNewGameDefersPlatformResources(t *testing.T) {

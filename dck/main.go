@@ -40,9 +40,6 @@ var assets = originalassets.
 var ymData = originalassets.DCKAssetYmData()
 
 var (
-	scrollerZSinStep, scrollerZCosStep           = math.Sincos(0.75)
-	scrollerXSinStep, scrollerXCosStep           = math.Sincos(18)
-	scrollerYSinStep, scrollerYCosStep           = math.Sincos(0.7)
 	logoXSinStep, logoXCosStep                   = math.Sincos(0.2)
 	logoXSecondarySinStep, logoXSecondaryCosStep = math.Sincos(1.0 / 60.0)
 	logoYSinStep, logoYCosStep                   = math.Sincos(5.0 / 37.0)
@@ -53,13 +50,13 @@ var (
 type Game struct {
 	initialized bool
 
-	logoImg        *ebiten.Image
-	titleImg       *ebiten.Image
-	rasterImg      *ebiten.Image
-	tileImg        *ebiten.Image
-	backdrop       *composite.RotozoomBackground
-	fontImg        *ebiten.Image
-	scrollPrograms [4]*scrolling.Scrolling
+	logoImg      *ebiten.Image
+	titleImg     *ebiten.Image
+	rasterImg    *ebiten.Image
+	tileImg      *ebiten.Image
+	backdrop     *composite.RotozoomBackground
+	fontImg      *ebiten.Image
+	pseudoScroll *scrolling.Scrolling
 
 	titleCanvas *ebiten.Image
 	topBar      *ebiten.Image
@@ -75,11 +72,6 @@ type Game struct {
 	rasterMotion *motion.WrapBank
 
 	loopCounter int
-
-	scrollX1 float64
-	scrollX2 float64
-	scrollX3 float64
-	scrollX4 float64
 
 	text1 string
 	text2 string
@@ -161,11 +153,11 @@ func (g *Game) Init() error {
 	if err != nil {
 		return err
 	}
-	for i, text := range [...]string{g.text1, g.text2, g.text3, g.text4} {
-		g.scrollPrograms[i], err = scrolling.New(scrolling.Config{Text: text, Advance: 64, Fonts: map[string]scrolling.Face{"default": {Atlas: g.fontImg, Metrics: metrics}}})
-		if err != nil {
-			return err
-		}
+	pseudo := presets.VivaPseudo3D(scrolling.Face{Atlas: g.fontImg, Metrics: metrics}, nil,
+		[4]string{g.text1, g.text2, g.text3, g.text4}, ScreenWidth, ScreenHeight)
+	g.pseudoScroll, err = scrolling.New(scrolling.Config{Pseudo3D: &pseudo})
+	if err != nil {
+		return err
 	}
 
 	g.titleCanvas = ebiten.NewImage(g.titleImg.Bounds().Dx(), g.titleImg.Bounds().Dy())
@@ -213,68 +205,8 @@ var mapCharToFont = func() func(int) int {
 	return func(ch int) int { index, _ := lookup(rune(ch)); return index }
 }()
 
-func stepSinCosBackward(sinValue, cosValue, sinStep, cosStep float64) (float64, float64) {
-	return sinValue*cosStep - cosValue*sinStep, cosValue*cosStep + sinValue*sinStep
-}
-
 func stepSinCosForward(sinValue, cosValue, sinStep, cosStep float64) (float64, float64) {
 	return sinValue*cosStep + cosValue*sinStep, cosValue*cosStep - sinValue*sinStep
-}
-
-func (g *Game) drawScroller(dst *ebiten.Image, text string, scrollX float64, scrollerID int, baseY, t, horizontalWave, verticalWave float64) {
-	if len(text) == 0 {
-		return
-	}
-	firstIndex := int(scrollX / 64)
-	maxIndex := firstIndex + 8
-	zSin, zCos := math.Sincos((t + float64(maxIndex)*.15) * 5)
-	xSin, xCos := math.Sincos(t*7 + float64(maxIndex)*18)
-	ySin, yCos := math.Sincos((t + float64(maxIndex)*.1) * 7)
-	advance := func() {
-		zSin, zCos = stepSinCosBackward(zSin, zCos, scrollerZSinStep, scrollerZCosStep)
-		xSin, xCos = stepSinCosBackward(xSin, xCos, scrollerXSinStep, scrollerXCosStep)
-		ySin, yCos = stepSinCosBackward(ySin, yCos, scrollerYSinStep, scrollerYCosStep)
-	}
-	for i := maxIndex; i >= len(text); i-- {
-		advance()
-	}
-	state := scrolling.IdentityState()
-	state.First = firstIndex
-	state.End = maxIndex + 1
-	state.Reverse = true
-	state.Time = t
-	state.Position = scrollX
-	state.Map = func(sample scrolling.Sample, op *ebiten.DrawImageOptions) bool {
-		currentZSin, currentXSin, currentYSin := zSin, xSin, ySin
-		advance()
-		z := currentZSin*.5 + 1.5
-		drawX := math.Floor((float64(sample.Index)*64 - 40 - currentXSin*32*horizontalWave - scrollX) * 2)
-		drawY := math.Floor(currentYSin*42*verticalWave + baseY - z*32)
-		scale := z
-		if scrollerID == 1 || scrollerID == 2 {
-			scale = 3 - z
-		}
-		if drawX < -100 || drawX > ScreenWidth+100 || drawY < -100 || drawY > ScreenHeight+100 || scale <= .1 {
-			return false
-		}
-		op.GeoM.Reset()
-		op.GeoM.Scale(scale, scale)
-		op.GeoM.Translate(drawX, drawY)
-		op.ColorScale.Scale(1, 1, 1, .9)
-		return true
-	}
-	g.scrollPrograms[scrollerID-1].DrawAt(dst, state)
-}
-
-func advanceScroller(scrollX float64, text string) float64 {
-	if len(text) == 0 {
-		return 0
-	}
-	scrollX += 4
-	if limit := float64(len(text) * 64); scrollX >= limit {
-		scrollX -= limit
-	}
-	return scrollX
 }
 
 // Update advances the demo by one fixed 60 Hz tick.
@@ -303,11 +235,7 @@ func (g *Game) Update() error {
 	g.rasterMotion.Step()
 
 	g.loopCounter++
-	g.scrollX1 = advanceScroller(g.scrollX1, g.text1)
-	g.scrollX2 = advanceScroller(g.scrollX2, g.text2)
-	g.scrollX3 = advanceScroller(g.scrollX3, g.text3)
-	g.scrollX4 = advanceScroller(g.scrollX4, g.text4)
-	return nil
+	return g.pseudoScroll.Update(kit.Frame{Tick: uint64(g.loopCounter), Time: float64(g.loopCounter) / 60})
 }
 
 // Draw renders the current immutable update state.
@@ -319,14 +247,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	g.backdrop.Draw(screen)
 
-	t := float64(g.loopCounter)/60 + 19
-	wave := math.Sin(t*0.25)*0.5 + 0.5
-	horizontalWave := math.Sqrt(1 - wave*wave)
-	verticalWave := math.Sin(t*0.5)*0.5 + 0.5
-	g.drawScroller(screen, g.text1, g.scrollX1, 1, 500, t, horizontalWave, verticalWave)
-	g.drawScroller(screen, g.text2, g.scrollX2, 2, 250, t, horizontalWave, verticalWave)
-	g.drawScroller(screen, g.text3, g.scrollX3, 3, 375, t, horizontalWave, verticalWave)
-	g.drawScroller(screen, g.text4, g.scrollX4, 4, 125, t, horizontalWave, verticalWave)
+	g.pseudoScroll.Draw(screen)
 
 	var topBarOp ebiten.DrawImageOptions
 	screen.DrawImage(g.topBar, &topBarOp)
