@@ -31,3 +31,6 @@ amplitude. Eight captures through frame 4,800 remain identical in every channel.
 The moving title uses `composite.RasterTitle` in its small-canvas mode. Its
 two raster clocks and third repeated strip remain editable; fourteen captures
 at wrap and title-cue boundaries remain identical in every channel.
+Its horizontal cosine path now uses DCK's `motion.WaveClock` with an editable
+970-tick initial hold. Fourteen captures around the release frame remain
+identical in every channel.

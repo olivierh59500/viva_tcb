@@ -10,6 +10,7 @@ import (
 
 	kit "github.com/olivierh59500/democonstructionkit"
 	"github.com/olivierh59500/democonstructionkit/composite"
+	"github.com/olivierh59500/democonstructionkit/motion"
 	"github.com/olivierh59500/democonstructionkit/presets"
 	"github.com/olivierh59500/democonstructionkit/scrolling"
 	"github.com/olivierh59500/democonstructionkit/sound"
@@ -17,7 +18,6 @@ import (
 
 	_ "image/png"
 	"log"
-	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 
@@ -53,6 +53,7 @@ type Game struct {
 	logoFormation *sprites.RecurrentFormation
 
 	rasterTitle *composite.RasterTitle
+	titleMotion *motion.WaveClock
 	topBar      *ebiten.Image
 
 	audioContext *audio.Context
@@ -60,9 +61,6 @@ type Game struct {
 	musicStream  *sound.Stream
 	audioReady   bool
 	musicStarted bool
-
-	logoX float64
-	hold  int
 
 	loopCounter int
 
@@ -76,8 +74,6 @@ type Game struct {
 // the game loop. Delaying this work is required while Android loads libgojni.
 func NewGame() *Game {
 	return &Game{
-		logoX: 1.5,
-		hold:  970,
 		text1: "                BILIZIR FROM DMA PRESENTS HIS LATEST GOLANG/EBITEN CONVERSION. THE ORIGINAL IDEA AND SCREEN IS FROM MELLOW MAN. THIS IS ANOTHER TRIBUTE                              TO THE ST LEGENDS 'TCB' !       ",
 		text2: "                               WITH EBITEN IT'S TOO EASY TO CREATE THIS KIND OF OLDSCHOOL DEMO, THIS IS ANOTHER NATIVE SCREEN BUILT WITH GOLANG AND EBITEN.                     WELL, IT'S NOT EXACTLY THE SAME EFFECTS, BUT IT'S CLOSE.             ",
 		text3: "                                            YES... THERE IS A THIRD SCROLLTEXT IN THIS SCREEN..... MUCH LIKE ON THE ORIGINAL TCB FULLSCREEN DEMO, WE HAVE MULTIPLE DIFFERENT SCROLLERS... AND THESE ALL HAVE THIS COOL EFFECT ON THEM.... I HOPE YOU LIKE IT.....            ",
@@ -123,6 +119,10 @@ func (g *Game) Init() error {
 		return fmt.Errorf("load raster: %w", err)
 	}
 	g.rasterTitle, err = composite.NewRasterTitle(presets.VivaRasterTitleCanvas(g.titleImg, g.rasterImg))
+	if err != nil {
+		return err
+	}
+	g.titleMotion, err = motion.NewWaveClock(presets.VivaTitleMotion(ScreenWidth, 970))
 	if err != nil {
 		return err
 	}
@@ -219,11 +219,7 @@ func (g *Game) Update() error {
 		return err
 	}
 
-	if g.hold > 0 {
-		g.hold--
-	} else {
-		g.logoX += 0.0125
-	}
+	g.titleMotion.Step()
 
 	g.rasterTitle.Step()
 
@@ -247,7 +243,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	var topBarOp ebiten.DrawImageOptions
 	screen.DrawImage(g.topBar, &topBarOp)
-	g.rasterTitle.DrawAt(screen, 64+ScreenWidth*math.Cos(g.logoX), 14)
+	g.rasterTitle.DrawAt(screen, g.titleMotion.At(0), 14)
 	g.logoFormation.Draw(screen)
 }
 
