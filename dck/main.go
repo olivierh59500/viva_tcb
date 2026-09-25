@@ -100,6 +100,14 @@ func NewGame() *Game {
 	}
 }
 
+// NewSilentGame retains the visual program while skipping device audio during
+// deterministic native-frame capture.
+func NewSilentGame() *Game {
+	game := NewGame()
+	game.audioReady = true
+	return game
+}
+
 func loadImage(path string) (*ebiten.Image, error) {
 	data, err := assets.ReadFile(path)
 	if err != nil {

@@ -14,3 +14,9 @@ The moving tile is now a `composite.RotozoomBackground` driven by the editable
 texture phase advance independently. The GPU renderer repeats the source tile
 with one quad and no giant pre-tiled image. A 20-second comparison matched all
 1,200 decoded frames through the entrance and rotozoom stages.
+
+For silent, deterministic native frames of the DCK version:
+
+```sh
+go run ./dck/cmd/capture -frames 0,1,60,240,600,1200 -out captures/viva
+```
