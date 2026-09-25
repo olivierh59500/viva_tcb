@@ -10,7 +10,6 @@ import (
 
 	kit "github.com/olivierh59500/democonstructionkit"
 	"github.com/olivierh59500/democonstructionkit/composite"
-	"github.com/olivierh59500/democonstructionkit/motion"
 	"github.com/olivierh59500/democonstructionkit/presets"
 	"github.com/olivierh59500/democonstructionkit/scrolling"
 	"github.com/olivierh59500/democonstructionkit/sound"
@@ -53,7 +52,7 @@ type Game struct {
 	pseudoScroll  *scrolling.Scrolling
 	logoFormation *sprites.RecurrentFormation
 
-	titleCanvas *ebiten.Image
+	rasterTitle *composite.RasterTitle
 	topBar      *ebiten.Image
 
 	audioContext *audio.Context
@@ -62,9 +61,8 @@ type Game struct {
 	audioReady   bool
 	musicStarted bool
 
-	logoX        float64
-	hold         int
-	rasterMotion *motion.WrapBank
+	logoX float64
+	hold  int
 
 	loopCounter int
 
@@ -124,7 +122,7 @@ func (g *Game) Init() error {
 	if g.rasterImg, err = loadImage("assets/raster.png"); err != nil {
 		return fmt.Errorf("load raster: %w", err)
 	}
-	g.rasterMotion, err = motion.NewWrapBank(presets.VivaRasterWrapConfig())
+	g.rasterTitle, err = composite.NewRasterTitle(presets.VivaRasterTitleCanvas(g.titleImg, g.rasterImg))
 	if err != nil {
 		return err
 	}
@@ -160,7 +158,6 @@ func (g *Game) Init() error {
 		return err
 	}
 
-	g.titleCanvas = ebiten.NewImage(g.titleImg.Bounds().Dx(), g.titleImg.Bounds().Dy())
 	g.topBar = ebiten.NewImage(ScreenWidth, 64)
 	g.topBar.Fill(color.Black)
 	g.initialized = true
@@ -228,7 +225,7 @@ func (g *Game) Update() error {
 		g.logoX += 0.0125
 	}
 
-	g.rasterMotion.Step()
+	g.rasterTitle.Step()
 
 	g.loopCounter++
 	if err := g.logoFormation.Update(float64(g.loopCounter)); err != nil {
@@ -250,24 +247,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	var topBarOp ebiten.DrawImageOptions
 	screen.DrawImage(g.topBar, &topBarOp)
-	g.drawTitle(screen)
+	g.rasterTitle.DrawAt(screen, 64+ScreenWidth*math.Cos(g.logoX), 14)
 	g.logoFormation.Draw(screen)
-}
-
-func (g *Game) drawTitle(screen *ebiten.Image) {
-	g.titleCanvas.Fill(color.Black)
-	for _, rasterY := range [...]float64{g.rasterMotion.At(0), g.rasterMotion.At(1), g.rasterMotion.At(1) + 72} {
-		var op ebiten.DrawImageOptions
-		op.GeoM.Scale(24, 1)
-		op.GeoM.Translate(0, rasterY)
-		composite.Instance{Image: g.rasterImg, Options: op}.Draw(g.titleCanvas)
-	}
-	var titleOp ebiten.DrawImageOptions
-	composite.Instance{Image: g.titleImg, Options: titleOp}.Draw(g.titleCanvas)
-
-	var canvasOp ebiten.DrawImageOptions
-	canvasOp.GeoM.Translate(64+ScreenWidth*math.Cos(g.logoX), 14)
-	composite.Instance{Image: g.titleCanvas, Options: canvasOp}.Draw(screen)
 }
 
 // Layout returns the demo's fixed logical size. Ebitengine letterboxes it on
