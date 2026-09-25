@@ -10,6 +10,7 @@ import (
 
 	kit "github.com/olivierh59500/democonstructionkit"
 	"github.com/olivierh59500/democonstructionkit/composite"
+	"github.com/olivierh59500/democonstructionkit/motion"
 	"github.com/olivierh59500/democonstructionkit/presets"
 	"github.com/olivierh59500/democonstructionkit/scrolling"
 	"github.com/olivierh59500/democonstructionkit/sound"
@@ -69,10 +70,9 @@ type Game struct {
 	audioReady   bool
 	musicStarted bool
 
-	logoX    float64
-	hold     int
-	rasterY1 float64
-	rasterY2 float64
+	logoX        float64
+	hold         int
+	rasterMotion *motion.WrapBank
 
 	loopCounter int
 
@@ -91,14 +91,12 @@ type Game struct {
 // the game loop. Delaying this work is required while Android loads libgojni.
 func NewGame() *Game {
 	return &Game{
-		logoX:    1.5,
-		hold:     970,
-		rasterY1: 0,
-		rasterY2: 72,
-		text1:    "                BILIZIR FROM DMA PRESENTS HIS LATEST GOLANG/EBITEN CONVERSION. THE ORIGINAL IDEA AND SCREEN IS FROM MELLOW MAN. THIS IS ANOTHER TRIBUTE                              TO THE ST LEGENDS 'TCB' !       ",
-		text2:    "                               WITH EBITEN IT'S TOO EASY TO CREATE THIS KIND OF OLDSCHOOL DEMO, THIS IS ANOTHER NATIVE SCREEN BUILT WITH GOLANG AND EBITEN.                     WELL, IT'S NOT EXACTLY THE SAME EFFECTS, BUT IT'S CLOSE.             ",
-		text3:    "                                            YES... THERE IS A THIRD SCROLLTEXT IN THIS SCREEN..... MUCH LIKE ON THE ORIGINAL TCB FULLSCREEN DEMO, WE HAVE MULTIPLE DIFFERENT SCROLLERS... AND THESE ALL HAVE THIS COOL EFFECT ON THEM.... I HOPE YOU LIKE IT.....            ",
-		text4:    "                                                                               I GUESS WE SHOULD HAVE SOME GREETINGS, AS IT IS A DEMOSCREEN IN THE OLD SCHOOL STYLEE! SO HERE THEY ARE.... THE GREETZ GO OUT TO:  ALL MEMBERS OF DMA (PDM, COCO, JINX, CORWIN, DWORKIN) - MELLOW MAN - NONAMENO - THE UNION (MAD MAX FROM TEX FOR THE MUSIC) - COMMODOREBLOG - ELKMOOSE AND ANYONE ELSE I MAY HAVE MISSED!    LETZ WRAP..............       ",
+		logoX: 1.5,
+		hold:  970,
+		text1: "                BILIZIR FROM DMA PRESENTS HIS LATEST GOLANG/EBITEN CONVERSION. THE ORIGINAL IDEA AND SCREEN IS FROM MELLOW MAN. THIS IS ANOTHER TRIBUTE                              TO THE ST LEGENDS 'TCB' !       ",
+		text2: "                               WITH EBITEN IT'S TOO EASY TO CREATE THIS KIND OF OLDSCHOOL DEMO, THIS IS ANOTHER NATIVE SCREEN BUILT WITH GOLANG AND EBITEN.                     WELL, IT'S NOT EXACTLY THE SAME EFFECTS, BUT IT'S CLOSE.             ",
+		text3: "                                            YES... THERE IS A THIRD SCROLLTEXT IN THIS SCREEN..... MUCH LIKE ON THE ORIGINAL TCB FULLSCREEN DEMO, WE HAVE MULTIPLE DIFFERENT SCROLLERS... AND THESE ALL HAVE THIS COOL EFFECT ON THEM.... I HOPE YOU LIKE IT.....            ",
+		text4: "                                                                               I GUESS WE SHOULD HAVE SOME GREETINGS, AS IT IS A DEMOSCREEN IN THE OLD SCHOOL STYLEE! SO HERE THEY ARE.... THE GREETZ GO OUT TO:  ALL MEMBERS OF DMA (PDM, COCO, JINX, CORWIN, DWORKIN) - MELLOW MAN - NONAMENO - THE UNION (MAD MAX FROM TEX FOR THE MUSIC) - COMMODOREBLOG - ELKMOOSE AND ANYONE ELSE I MAY HAVE MISSED!    LETZ WRAP..............       ",
 	}
 }
 
@@ -130,6 +128,10 @@ func (g *Game) Init() error {
 	}
 	if g.rasterImg, err = loadImage("assets/raster.png"); err != nil {
 		return fmt.Errorf("load raster: %w", err)
+	}
+	g.rasterMotion, err = motion.NewWrapBank(presets.VivaRasterWrapConfig())
+	if err != nil {
+		return err
 	}
 	if g.tileImg, err = loadImage("assets/tcb_tile.png"); err != nil {
 		return fmt.Errorf("load tile: %w", err)
@@ -290,14 +292,7 @@ func (g *Game) Update() error {
 		g.logoX += 0.0125
 	}
 
-	g.rasterY1 -= 2
-	g.rasterY2 -= 2
-	if g.rasterY1 <= -72 {
-		g.rasterY1 = 72
-	}
-	if g.rasterY2 <= -72 {
-		g.rasterY2 = 72
-	}
+	g.rasterMotion.Step()
 
 	g.loopCounter++
 	g.scrollX1 = advanceScroller(g.scrollX1, g.text1)
@@ -333,7 +328,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 func (g *Game) drawTitle(screen *ebiten.Image) {
 	g.titleCanvas.Fill(color.Black)
-	for _, rasterY := range [...]float64{g.rasterY1, g.rasterY2, g.rasterY2 + 72} {
+	for _, rasterY := range [...]float64{g.rasterMotion.At(0), g.rasterMotion.At(1), g.rasterMotion.At(1) + 72} {
 		var op ebiten.DrawImageOptions
 		op.GeoM.Scale(24, 1)
 		op.GeoM.Translate(0, rasterY)
