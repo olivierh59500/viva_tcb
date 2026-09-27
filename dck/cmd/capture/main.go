@@ -27,7 +27,11 @@ func main() {
 		frames = append(frames, n)
 	}
 	if err := capture.Run(capture.Config{Directory: *out, Frames: frames, Width: vivatcb.ScreenWidth, Height: vivatcb.ScreenHeight}, func() (ebiten.Game, error) {
-		return vivatcb.NewSilentGame(), nil
+		game := vivatcb.NewSilentGame()
+		if err := game.Init(); err != nil {
+			return nil, err
+		}
+		return game, nil
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

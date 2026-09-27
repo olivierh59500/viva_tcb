@@ -28,6 +28,11 @@ preceding DCK renderer in every color and alpha channel.
 The ten moving DMA logos now use `sprites.RecurrentFormation`. Four harmonic
 seeds produce all poses with editable count, phase spacing and vertical
 amplitude. Eight captures through frame 4,800 remain identical in every channel.
+The initial tick-zero pose is prepared during `Init`, so the first frame now
+matches the preserved Go version as well. Eight complete native captures at
+frames 0, 1, 60, 240, 600, 1,200, 2,400 and 4,800 are byte-identical. The
+capture command initializes the scene before frame zero, as the full-game
+fidelity comparator does.
 The moving title uses `composite.RasterTitle` in its small-canvas mode. Its
 two raster clocks and third repeated strip remain editable; fourteen captures
 at wrap and title-cue boundaries remain identical in every channel.

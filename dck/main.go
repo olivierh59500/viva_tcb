@@ -157,6 +157,9 @@ func (g *Game) Init() error {
 	if err != nil {
 		return err
 	}
+	if err := g.logoFormation.Update(0); err != nil {
+		return err
+	}
 
 	g.topBar = ebiten.NewImage(ScreenWidth, 64)
 	g.topBar.Fill(color.Black)
