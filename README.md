@@ -7,6 +7,25 @@ La musique `assets/music.ym` est synthétisée par `ym-player` à 48 kHz, puis
 envoyée à l’audio Ebitengine sous forme PCM 16 bits stéréo. L’initialisation de
 l’audio est différée au premier `Update` pour respecter le cycle de vie Android.
 
+<!-- Project showcase -->
+## Screenshots
+
+[![DMA music meters and scattered metallic letters over the blue honeycomb backdrop](docs/media/screenshot-1.png)](docs/media/screenshot-1.png)
+
+DMA music meters and scattered metallic letters over the blue honeycomb backdrop.
+
+## Video
+
+[![Animated preview of Viva TCB](docs/media/preview.gif)](https://github.com/olivierh59500/viva_tcb/raw/refs/heads/main/docs/media/preview.mp4)
+
+**[Watch or download the 24-second MP4 preview with sound](https://github.com/olivierh59500/viva_tcb/raw/refs/heads/main/docs/media/preview.mp4)**
+
+This preview is captured from the Go production.
+
+The animated image is silent; the MP4 includes the soundtrack.
+
+<!-- End project showcase -->
+
 ## Ordinateur
 
 ```sh
